@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/DanielMartin96/goddit/internal/post"
+	uuid "github.com/satori/go.uuid"
 )
 
 type PostRow struct {
@@ -24,7 +25,33 @@ func convertPostRowToPost(p PostRow) post.Post {
 	}
 }
 
-func (d * Database) GetPost(ctx context.Context, uuid string) (post.Post, error) {
+func (d *Database) CreatePost(ctx context.Context, pst post.Post) (post.Post, error) {
+	pst.ID = uuid.NewV4().String()
+	postRow := PostRow{
+		ID: pst.ID,
+		Slug: sql.NullString{String: pst.Slug, Valid: true},
+		Author: sql.NullString{String: pst.Author, Valid: true},
+		Body: sql.NullString{String: pst.Body, Valid: true},
+	}
+	rows, err := d.Client.NamedQueryContext(
+		ctx,
+		`INSERT INTO posts
+		(id, slug, author, body)
+		VALUES
+		(:id, :slug, :author, :body)`,
+		postRow,
+	)
+	if err != nil {
+		return post.Post{}, fmt.Errorf("failed to insert post: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return post.Post{}, fmt.Errorf("failed to close rows: %w", err)
+	}
+	
+	return pst, nil
+}
+
+func (d *Database) GetPost(ctx context.Context, uuid string) (post.Post, error) {
 	var pstRow PostRow
 	row := d.Client.QueryRowContext(
 		ctx,
@@ -40,4 +67,44 @@ func (d * Database) GetPost(ctx context.Context, uuid string) (post.Post, error)
 
 
 	return convertPostRowToPost(pstRow), nil
+}
+
+func (d *Database) UpdatePost(ctx context.Context, id string,  pst post.Post) (post.Post, error)  {
+	pstRow := PostRow{
+		ID: id,
+		Slug: sql.NullString{String: pst.Slug, Valid: true},
+		Author: sql.NullString{String: pst.Author, Valid: true},
+		Body: sql.NullString{String: pst.Body, Valid: true},
+	}
+
+	rows, err := d.Client.NamedQueryContext(
+		ctx,
+		`UPDATE posts SET
+		slug = :slug,
+		author = :author
+		body = :body
+		WHERE id = :id`,
+		pstRow,
+	)
+	if err != nil {
+		return post.Post{}, fmt.Errorf("failed to update post: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return post.Post{}, fmt.Errorf("failed to close rows: %w", err)
+	}
+	
+	return convertPostRowToPost(pstRow), nil
+}
+
+func (d *Database) DeletePost(ctx context.Context, id string) error {
+	_, err := d.Client.ExecContext(
+		ctx,
+		`DELETE FROM posts where id = $1`,
+		id,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to delete post from database: %w", err)
+	}
+
+	return nil
 }

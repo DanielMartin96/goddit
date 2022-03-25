@@ -21,7 +21,10 @@ type Post struct {
 
 // Store - this interface defines all the methods that our service needs in order to operate
 type Store interface {
+	CreatePost(context.Context, Post) (Post, error)
 	GetPost(context.Context, string) (Post, error)
+	UpdatePost(context.Context, string, Post) (Post, error)
+	DeletePost(context.Context, string) error
 }
 
 // Service - is the struct on which all our logic will be built on top of
@@ -48,12 +51,23 @@ func (s *Service) GetPost(ctx context.Context, id string) (Post, error) {
 }
 
 func (s *Service) CreatePost(ctx context.Context, pst Post) (Post, error) {
-	return Post{}, ErrNotImplemented
+	insertedPst, err := s.Store.CreatePost(ctx, pst)
+	if err != nil {
+		return Post{}, err
+	}
+
+	return insertedPst, ErrNotImplemented
 }
 
-func (s *Service) UpdatePost(ctx context.Context, pst Post) error {
-	return ErrNotImplemented
+func (s *Service) UpdatePost(ctx context.Context, id string, updatedPst Post) (Post, error) {
+	pst, err := s.Store.UpdatePost(ctx, id, updatedPst)
+	if err != nil {
+		fmt.Println("error updating post")
+		return Post{}, err
+	}
+
+	return pst, nil
 }
 func (s *Service) DeletePost(ctx context.Context, id string) error {
-	return ErrNotImplemented
+	return s.Store.DeletePost(ctx, id)
 }
